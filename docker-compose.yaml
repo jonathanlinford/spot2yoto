@@ -1,6 +1,6 @@
 services:
   spot2yoto:
-    build: .
+    image: ghcr.io/jonathanlinford/spot2yoto:latest
     volumes:
       - ${HOME}/.config/spot2yoto:/root/.config/spot2yoto
       - spot2yoto-state:/root/.local/share/spot2yoto

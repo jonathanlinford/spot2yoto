@@ -63,22 +63,18 @@ Creating custom Yoto players used to be a massive pain — manually downloading 
 ## Quick Start
 
 ```bash
-# 1. Build
-# Assumes docker is running
-docker compose build
-
-# 2. Create config
+# 1. Create config
 docker compose run --rm spot2yoto config init
 # Edit ~/.config/spot2yoto/config.yaml with your Spotify client_id and client_secret
 
-# 3. Authenticate
+# 2. Authenticate
 docker compose run --rm spot2yoto auth yoto       # Prints a URL to visit for Yoto device code auth
 docker compose run --rm spot2yoto auth spotify     # Opens browser for Spotify OAuth
 
-# 4. Set up a card
+# 3. Set up a card
 # Go to the Yoto app, edit a MYO card's description, paste a Spotify playlist URL
 
-# 5. Sync
+# 4. Sync
 docker compose run --rm spot2yoto sync --dry-run   # Preview what will happen
 docker compose run --rm spot2yoto sync              # Download and upload tracks
 ```
@@ -135,7 +131,7 @@ Five layers prevent unnecessary work:
 
 ## Docker Details
 
-Config is mounted from `~/.config/spot2yoto/` so it's shared between containers. State and download cache use Docker volumes.
+The `docker-compose.yaml` pulls from `ghcr.io/jonathanlinford/spot2yoto:latest`. Config is mounted from `~/.config/spot2yoto/` so it's shared between containers. State and download cache use Docker volumes.
 
 ```yaml
 volumes:
@@ -177,7 +173,7 @@ sync:
 If you'd rather run without Docker:
 
 ```bash
-# Requires Python 3.11+ with uv and ffmpeg installed
+# Requires Python 3.13+ with uv and ffmpeg installed
 uv sync
 uv run spot2yoto sync
 ```
