@@ -19,6 +19,7 @@ from spot2yoto.models import (
 )
 
 API_BASE = "https://api.yotoplay.com"
+MAX_RETRY_AFTER = 60
 
 
 class YotoClient:
@@ -56,6 +57,11 @@ class YotoClient:
             resp = self._client.request(method, path, **kwargs)
             if resp.status_code == 429:
                 retry_after = int(resp.headers.get("Retry-After", 2 ** attempt))
+                if retry_after > MAX_RETRY_AFTER:
+                    raise YotoAPIError(
+                        f"Rate limited with Retry-After {retry_after}s (exceeds {MAX_RETRY_AFTER}s cap)",
+                        status_code=429,
+                    )
                 time.sleep(retry_after)
                 continue
             if resp.status_code == 401 and self._client_id and attempt < max_retries - 1:
@@ -186,6 +192,11 @@ class YotoClient:
             resp = self._client.get(path, params={"loudnorm": "false"})
             if resp.status_code == 429:
                 retry_after = int(resp.headers.get("Retry-After", 2 ** min(attempt, 5)))
+                if retry_after > MAX_RETRY_AFTER:
+                    raise TranscodeError(
+                        f"Rate limited with Retry-After {retry_after}s (exceeds {MAX_RETRY_AFTER}s cap)",
+                        status_code=429,
+                    )
                 time.sleep(retry_after)
                 continue
             if resp.status_code == 202:

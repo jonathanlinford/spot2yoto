@@ -213,20 +213,35 @@ def sync_mapping(
             file_sha256=sha,
         )
 
+    # If no tracks changed, card content is identical — just update snapshot
+    content_changed = bool(diff.new_tracks or diff.removed_track_ids)
+    if not content_changed and not force:
+        db.update_card_state(card.card_id, composite_snapshot)
+        click.echo(f"  No track changes, skipping card update")
+        return True
+
     # Upload cover art from first playlist that has one
     cover_url = ""
     if cover_url_source:
-        try:
-            click.echo(f"  Uploading cover art...")
-            cover_url = yoto.upload_cover_image(cover_url_source)
+        cached = db.get_cached_media(cover_url_source)
+        if cached:
+            cover_url = cached
             if verbose:
-                click.echo(f"  Cover art uploaded: {cover_url}")
-        except Exception as e:
-            click.echo(f"  Warning: cover art upload failed ({e}), continuing without it")
+                click.echo(f"  Cover art cached, skipping upload")
+        else:
+            try:
+                click.echo(f"  Uploading cover art...")
+                cover_url = yoto.upload_cover_image(cover_url_source)
+                if cover_url:
+                    db.cache_media(cover_url_source, cover_url, "cover")
+                if verbose:
+                    click.echo(f"  Cover art uploaded: {cover_url}")
+            except Exception as e:
+                click.echo(f"  Warning: cover art upload failed ({e}), continuing without it")
 
     # Upload display icons (per-track album art)
-    icon_cache: dict[str, str] = {}  # image_url -> media_id
     track_icons: dict[str, str] = {}  # track_id -> media_id
+    icon_cache: dict[str, str] = {}  # in-memory dedup within this run
     for track in diff.all_tracks:
         if not track.album_image_url:
             continue
@@ -234,12 +249,19 @@ def sync_mapping(
         if url in icon_cache:
             track_icons[track.track_id] = icon_cache[url]
             continue
+        cached = db.get_cached_media(url)
+        if cached:
+            icon_cache[url] = cached
+            track_icons[track.track_id] = cached
+            continue
         try:
             if verbose:
                 click.echo(f"  Uploading icon: {track.name}")
             media_id = yoto.upload_display_icon(url)
             icon_cache[url] = media_id
             track_icons[track.track_id] = media_id
+            if media_id:
+                db.cache_media(url, media_id, "icon")
         except Exception as e:
             click.echo(f"  Warning: icon upload failed for {track.name} ({e})")
 

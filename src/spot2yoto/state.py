@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS sync_state (
     position INTEGER NOT NULL,
     PRIMARY KEY (spotify_track_id, mapping_name)
 );
+
+CREATE TABLE IF NOT EXISTS media_cache (
+    source_url TEXT PRIMARY KEY,
+    media_id TEXT NOT NULL,
+    media_type TEXT NOT NULL
+);
 """
 
 
@@ -118,6 +124,28 @@ class StateDB:
             [mapping_name, *track_ids],
         )
         self._conn.commit()
+
+    # --- media_cache ---
+
+    def get_cached_media(self, source_url: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT media_id FROM media_cache WHERE source_url = ?",
+            (source_url,),
+        ).fetchone()
+        return row["media_id"] if row else None
+
+    def cache_media(self, source_url: str, media_id: str, media_type: str) -> None:
+        self._conn.execute(
+            """INSERT INTO media_cache (source_url, media_id, media_type)
+               VALUES (?, ?, ?)
+               ON CONFLICT(source_url) DO UPDATE SET
+                 media_id = excluded.media_id,
+                 media_type = excluded.media_type""",
+            (source_url, media_id, media_type),
+        )
+        self._conn.commit()
+
+    # --- card_state (queries) ---
 
     def get_card_state(self, mapping_name: str) -> dict | None:
         row = self._conn.execute(
