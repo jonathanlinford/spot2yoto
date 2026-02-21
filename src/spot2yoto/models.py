@@ -3,16 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
-
 from pydantic import BaseModel, Field
 
 
 # --- Config models ---
-
-
-class ChapterMode(str, Enum):
-    ONE_PER_TRACK = "one_per_track"
 
 
 class YotoConfig(BaseModel):
@@ -29,26 +23,16 @@ class DownloadConfig(BaseModel):
     output_dir: str = "~/.cache/spot2yoto/downloads"
 
 
-class MappingConfig(BaseModel):
-    name: str
-    spotify_url: str
-    yoto_card_id: str = ""
-    chapter_mode: ChapterMode = ChapterMode.ONE_PER_TRACK
-
-
 class SyncConfig(BaseModel):
     max_retries: int = 3
     transcode_poll_interval: int = 2
     transcode_poll_max_attempts: int = 60
-    parallel_uploads: int = 3
-    cleanup_downloads: bool = True
 
 
 class AppConfig(BaseModel):
     yoto: YotoConfig = Field(default_factory=YotoConfig)
     spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     download: DownloadConfig = Field(default_factory=DownloadConfig)
-    mappings: list[MappingConfig] = Field(default_factory=list)
     sync: SyncConfig = Field(default_factory=SyncConfig)
 
 
@@ -76,6 +60,7 @@ class SpotifyTrack(BaseModel):
     duration_ms: int
     spotify_url: str
     position: int
+    album_image_url: str = ""
 
 
 class SpotifyPlaylist(BaseModel):
@@ -83,6 +68,7 @@ class SpotifyPlaylist(BaseModel):
     name: str
     snapshot_id: str
     tracks: list[SpotifyTrack]
+    cover_image_url: str = ""
 
 
 # --- Yoto data models ---
@@ -95,22 +81,30 @@ class YotoCard(BaseModel):
 
 
 class YotoUploadUrl(BaseModel):
-    upload_url: str
+    upload_url: str | None = None  # None if file already exists on Yoto
     upload_id: str
 
 
 class YotoTranscodeResult(BaseModel):
     upload_id: str
     transcoded_sha256: str
+    duration: int = 0  # seconds
+    file_size: int = 0
+    channels: str = "stereo"
 
 
 class YotoChapter(BaseModel):
     title: str
-    key: str  # the transcoded file key/sha256
+    transcoded_sha256: str  # used as yoto:#sha in trackUrl
     duration: int = 0  # seconds
+    file_size: int = 0
+    channels: str = "stereo"
+    icon_media_id: str = ""  # 16x16 display icon for Yoto player
 
 
 class YotoContentPayload(BaseModel):
     card_id: str
     title: str
     chapters: list[YotoChapter]
+    cover_image_url: str = ""  # Yoto media URL for cover art
+    description: str = ""  # Preserve card description (contains Spotify link)

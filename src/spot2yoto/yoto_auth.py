@@ -12,7 +12,28 @@ from spot2yoto.exceptions import AuthError
 from spot2yoto.models import TokenData
 
 AUTH_BASE = "https://login.yotoplay.com"
-DEFAULT_TOKEN_PATH = Path("~/.config/spot2yoto/tokens.json").expanduser()
+TOKENS_DIR = Path("~/.config/spot2yoto/tokens").expanduser()
+
+
+def _token_path(account_name: str) -> Path:
+    return TOKENS_DIR / f"{account_name}.json"
+
+
+def _migrate_legacy_tokens() -> None:
+    """One-time migration: move legacy tokens.json → tokens/default.json."""
+    legacy = Path("~/.config/spot2yoto/tokens.json").expanduser()
+    default = _token_path("default")
+    if legacy.exists() and not default.exists():
+        TOKENS_DIR.mkdir(parents=True, exist_ok=True)
+        legacy.rename(default)
+
+
+def list_accounts() -> list[str]:
+    """Return sorted list of authenticated Yoto account names."""
+    _migrate_legacy_tokens()
+    if not TOKENS_DIR.exists():
+        return []
+    return sorted(p.stem for p in TOKENS_DIR.glob("*.json"))
 
 
 def request_device_code(client_id: str) -> dict:
@@ -85,15 +106,17 @@ def refresh_access_token(client_id: str, refresh_token: str) -> TokenData:
     )
 
 
-def save_tokens(tokens: TokenData, path: Path | None = None) -> None:
-    token_path = path or DEFAULT_TOKEN_PATH
+def save_tokens(tokens: TokenData, account_name: str = "default") -> None:
+    _migrate_legacy_tokens()
+    token_path = _token_path(account_name)
     token_path.parent.mkdir(parents=True, exist_ok=True)
     token_path.write_text(json.dumps(tokens.model_dump(), indent=2))
     token_path.chmod(0o600)
 
 
-def load_tokens(path: Path | None = None) -> TokenData | None:
-    token_path = path or DEFAULT_TOKEN_PATH
+def load_tokens(account_name: str = "default") -> TokenData | None:
+    _migrate_legacy_tokens()
+    token_path = _token_path(account_name)
     if not token_path.exists():
         return None
     try:
@@ -103,13 +126,14 @@ def load_tokens(path: Path | None = None) -> TokenData | None:
         return None
 
 
-def ensure_valid_token(client_id: str, token_path: Path | None = None) -> TokenData:
-    tokens = load_tokens(token_path)
+def ensure_valid_token(client_id: str, account_name: str = "default") -> TokenData:
+    tokens = load_tokens(account_name)
     if tokens is None:
         raise AuthError(
-            "No Yoto tokens found. Run 'spot2yoto auth yoto' first."
+            f"No Yoto tokens found for account '{account_name}'. "
+            "Run 'spot2yoto auth yoto' first."
         )
     if tokens.is_expired:
         tokens = refresh_access_token(client_id, tokens.refresh_token)
-        save_tokens(tokens, token_path)
+        save_tokens(tokens, account_name)
     return tokens

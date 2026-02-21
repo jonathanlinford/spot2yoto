@@ -10,6 +10,7 @@ dependencies = [
     "spotipy>=2.23",
     "pydantic>=2.5",
     "pyyaml>=6.0",
+    "yt-dlp>=2024.0",
 ]
 
 [project.scripts]

@@ -1,0 +1,15 @@
+yoto:
+  client_id: REDACTED_YOTO_CLIENT_ID
+
+spotify:
+  client_id: your-spotify-client-id
+  client_secret: your-spotify-client-secret
+
+download:
+  format: mp3
+  output_dir: ~/.cache/spot2yoto/downloads
+
+sync:
+  max_retries: 3
+  transcode_poll_interval: 2
+  transcode_poll_max_attempts: 60

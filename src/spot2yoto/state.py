@@ -74,6 +74,14 @@ class StateDB:
         ).fetchone()
         return row["transcoded_sha256"] if row else None
 
+    def get_track_sha_any(self, track_id: str) -> str | None:
+        """Look up transcoded_sha256 for a track across ALL cards."""
+        row = self._conn.execute(
+            "SELECT transcoded_sha256 FROM sync_state WHERE spotify_track_id = ? LIMIT 1",
+            (track_id,),
+        ).fetchone()
+        return row["transcoded_sha256"] if row else None
+
     def get_all_tracks(self, mapping_name: str) -> list[dict]:
         rows = self._conn.execute(
             "SELECT * FROM sync_state WHERE mapping_name = ? ORDER BY position",

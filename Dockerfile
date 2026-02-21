@@ -7,10 +7,9 @@ RUN apt-get update \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
-COPY pyproject.toml .python-version ./
+COPY pyproject.toml .python-version README.md uv.lock ./
 COPY src/ src/
 
-RUN uv sync --no-dev \
-    && uv pip install spotdl
+RUN uv sync --no-dev --frozen
 
 ENTRYPOINT ["uv", "run", "spot2yoto"]

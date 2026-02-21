@@ -12,6 +12,8 @@ venv/
 *.db
 *.sqlite
 tokens.json
+tokens/
 config.yaml
+.cache
 .cache/
 downloads/
