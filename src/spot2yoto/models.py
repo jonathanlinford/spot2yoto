@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 
 class YotoConfig(BaseModel):
-    client_id: str = "REDACTED_YOTO_CLIENT_ID"
+    client_id: str = ""
 
 
 class SpotifyConfig(BaseModel):

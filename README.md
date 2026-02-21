@@ -146,7 +146,7 @@ Located at `~/.config/spot2yoto/config.yaml`:
 
 ```yaml
 yoto:
-  client_id: "REDACTED_YOTO_CLIENT_ID"
+  client_id: "your-yoto-client-id"
 spotify:
   client_id: "your-spotify-client-id"
   client_secret: "your-spotify-client-secret"
