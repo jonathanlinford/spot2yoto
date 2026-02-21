@@ -1,0 +1,23 @@
+[project]
+name = "spot2yoto"
+version = "0.1.0"
+description = "Sync Spotify playlists to Yoto MYO cards"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.1",
+    "httpx>=0.27",
+    "spotipy>=2.23",
+    "pydantic>=2.5",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+spot2yoto = "spot2yoto.cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spot2yoto"]

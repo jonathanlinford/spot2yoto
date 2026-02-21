@@ -1,0 +1,12 @@
+services:
+  spot2yoto:
+    build: .
+    volumes:
+      - ./config:/root/.config/spot2yoto
+      - spot2yoto-state:/root/.local/share/spot2yoto
+      - spot2yoto-cache:/root/.cache/spot2yoto
+    command: ["sync", "all"]
+
+volumes:
+  spot2yoto-state:
+  spot2yoto-cache:
