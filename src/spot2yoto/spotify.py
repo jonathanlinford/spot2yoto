@@ -135,6 +135,7 @@ def download_track(
             "-o", output_template,
             "--no-playlist",
             "--quiet",
+            "--remote-components", "ejs:github",
         ],
         capture_output=True,
         text=True,
