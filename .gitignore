@@ -17,3 +17,4 @@ config.yaml
 .cache
 .cache/
 downloads/
+_version.py

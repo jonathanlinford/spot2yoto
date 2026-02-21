@@ -1,4 +1,8 @@
-FROM python:3.11-slim
+ARG PYTHON_VERSION=3.13
+FROM python:${PYTHON_VERSION}-slim
+
+ARG SETUPTOOLS_SCM_PRETEND_VERSION
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg curl unzip \
