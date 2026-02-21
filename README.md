@@ -57,6 +57,7 @@ Creating custom Yoto players used to be a massive pain — manually downloading 
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/)
+- A [Yoto Developer](https://dashboard.yoto.dev/) app (for API access)
 - A [Spotify Developer](https://developer.spotify.com/dashboard) app (free, for playlist metadata)
 - A Yoto account with MYO cards
 
@@ -65,14 +66,14 @@ Creating custom Yoto players used to be a massive pain — manually downloading 
 ```bash
 # 1. Create config
 docker compose run --rm spot2yoto config init
-# Edit ~/.config/spot2yoto/config.yaml with your Spotify client_id and client_secret
+# Edit ~/.config/spot2yoto/config.yaml with your Yoto and Spotify credentials (see setup sections below)
 
 # 2. Authenticate
 docker compose run --rm spot2yoto auth yoto       # Prints a URL to visit for Yoto device code auth
 docker compose run --rm spot2yoto auth spotify     # Opens browser for Spotify OAuth
 
 # 3. Set up a card
-# Go to the Yoto app, edit a MYO card's description, paste a Spotify playlist URL
+# Go to the Yoto app, edit a MYO card's description, paste one or more Spotify playlist URL
 
 # 4. Sync
 docker compose run --rm spot2yoto sync --dry-run   # Preview what will happen
@@ -159,11 +160,20 @@ sync:
   transcode_poll_max_attempts: 60
 ```
 
+## Yoto Developer App Setup
+
+1. Go to https://dashboard.yoto.dev/ and sign up
+2. Create an application with these settings:
+   - **Application Type**: Public Client
+   - **Allowed Callback URLs**: `http://localhost:8888/callback`
+   - **Allowed Logout URLs**: `http://localhost:8888/logout`
+3. Copy the Client ID into `yoto.client_id` in your config
+
 ## Spotify Developer App Setup
 
 1. Go to https://developer.spotify.com/dashboard
-2. Create an app (name: `spot2yoto`, description: anything)
-3. Check **Web API**
+2. Create an app (name and description can be anything)
+3. Check **Web API** under APIs used
 4. Add redirect URI: `http://127.0.0.1:8888/callback`
 5. Under **User Management**, add your Spotify account email
 6. Copy Client ID and Client Secret into your config
