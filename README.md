@@ -73,7 +73,7 @@ docker compose run --rm spot2yoto auth yoto       # Prints a URL to visit for Yo
 docker compose run --rm spot2yoto auth spotify     # Opens browser for Spotify OAuth
 
 # 3. Set up a card
-# Go to the Yoto app, edit a MYO card's description, paste one or more Spotify playlist URL
+# Go to the Yoto app, edit a MYO card's description, paste one or more Spotify playlist URLs
 
 # 4. Sync
 docker compose run --rm spot2yoto sync --dry-run   # Preview what will happen
@@ -86,11 +86,14 @@ docker compose run --rm spot2yoto sync              # Download and upload tracks
 |---------|-------------|
 | `auth yoto [NAME]` | Authenticate a Yoto account (default name: `default`) |
 | `auth spotify` | Authenticate with Spotify (OAuth) |
+| `auth clear --service spotify` | Clear Spotify auth cache (forces re-auth on next run) |
+| `auth clear --service yoto` | Clear Yoto tokens (optionally `--account NAME`) |
 | `auth status` | Show authentication status for all accounts |
 | `cards list [--account NAME]` | List MYO cards (default: all accounts) |
 | `cards show ID [--account NAME]` | Show full card details as JSON |
 | `sync [--account NAME]` | Discover and sync cards with Spotify links (default: all accounts) |
 | `sync --dry-run` | Preview sync without making changes |
+| `sync --force` | Force re-sync even if playlist snapshot is unchanged |
 | `status` | Show sync history |
 | `config init` | Create default config file |
 
@@ -116,13 +119,14 @@ spot2yoto scans all your MYO cards, finds any Spotify playlist URLs, validates t
 
 ## Deduplication
 
-Five layers prevent unnecessary work:
+Six layers prevent unnecessary work:
 
 1. **Playlist snapshot** — skips the entire card if none of its Spotify playlists have changed
-2. **Per-track ID** — only downloads/uploads tracks that are new; duplicates across playlists on the same card are merged automatically
+2. **Per-track diff** — only downloads/uploads tracks that are new; duplicates across playlists on the same card are merged automatically
 3. **Download cache** — downloaded MP3s are cached by track ID, so re-syncing or sharing a track across cards never re-downloads
 4. **Cross-card upload reuse** — if a track was already uploaded for one card, its transcoded audio is reused for any other card that needs it
 5. **File SHA256** — Yoto's API skips re-upload if the audio file already exists on their servers
+6. **Media cache** — cover art and album icon URLs are mapped to Yoto media IDs in the local DB, avoiding redundant image uploads
 
 ## Scheduled Sync
 
@@ -178,12 +182,47 @@ sync:
 5. Under **User Management**, add your Spotify account email
 6. Copy Client ID and Client Secret into your config
 
+## Architecture
+
+**Key modules:**
+
+| Module | Purpose |
+|--------|---------|
+| `cli.py` | Click CLI entry point (groups: `auth`, `cards`, `config`, `sync`, `status`) |
+| `sync.py` | Sync orchestrator — discover mappings, diff, download, upload |
+| `ui.py` | Rich-powered output — colors, emoji, tables, panels, sync summary |
+| `yoto_client.py` | Yoto API client with auto token refresh and rate limit retry (capped at 60s) |
+| `yoto_auth.py` | OAuth device code flow for Yoto |
+| `spotify.py` | Spotify API via spotipy + yt-dlp audio download |
+| `state.py` | SQLite state DB (tables: `card_state`, `sync_state`, `media_cache`) |
+| `models.py` | Pydantic models for config, tokens, Spotify data, Yoto data |
+| `config.py` | YAML config loading from `~/.config/spot2yoto/config.yaml` |
+
+## Testing
+
+Tests run inside Docker. A pre-commit hook runs them automatically before each commit.
+
+```bash
+docker build --build-arg SETUPTOOLS_SCM_PRETEND_VERSION=0.1.0 -t spot2yoto-test .
+docker run --rm --entrypoint "uv" spot2yoto-test run pytest -v
+```
+
+## Versioning
+
+Version is derived from git tags via `setuptools-scm` + `hatch-vcs`. To release:
+
+```bash
+git tag v0.x.y && git push origin v0.x.y
+```
+
+The CI workflow (`.github/workflows/release.yml`) builds and pushes multi-platform Docker images (amd64 + arm64) to `ghcr.io` on tag push.
+
 ## Local Development
 
 If you'd rather run without Docker:
 
 ```bash
-# Requires Python 3.13+ with uv and ffmpeg installed
+# Requires Python 3.11+ with uv and ffmpeg installed
 uv sync
 uv run spot2yoto sync
 ```

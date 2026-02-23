@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -10,6 +11,22 @@ import httpx
 
 from spot2yoto.exceptions import AuthError
 from spot2yoto.models import TokenData
+
+_RETRY_BODY_RE = re.compile(r"after:\s*(\d+)\s*s", re.IGNORECASE)
+
+
+def _check_rate_limit(resp: httpx.Response) -> None:
+    """Raise AuthError if response body contains a rate limit message."""
+    try:
+        text = resp.text
+    except Exception:
+        return
+    if not isinstance(text, str):
+        return
+    match = _RETRY_BODY_RE.search(text)
+    if match:
+        from spot2yoto.yoto_client import _raise_rate_limit_error
+        _raise_rate_limit_error(int(match.group(1)))
 
 AUTH_BASE = "https://login.yotoplay.com"
 TOKENS_DIR = Path("~/.config/spot2yoto/tokens").expanduser()
@@ -45,6 +62,7 @@ def request_device_code(client_id: str) -> dict:
             "audience": "https://api.yotoplay.com",
         },
     )
+    _check_rate_limit(resp)
     if resp.status_code != 200:
         raise AuthError(f"Device code request failed ({resp.status_code}): {resp.text}")
     return resp.json()
@@ -95,6 +113,7 @@ def refresh_access_token(client_id: str, refresh_token: str) -> TokenData:
             "refresh_token": refresh_token,
         },
     )
+    _check_rate_limit(resp)
     if resp.status_code != 200:
         raise AuthError(f"Token refresh failed ({resp.status_code}): {resp.text}")
     data = resp.json()

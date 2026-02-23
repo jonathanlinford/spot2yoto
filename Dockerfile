@@ -15,7 +15,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 COPY pyproject.toml .python-version README.md uv.lock ./
 COPY src/ src/
+COPY tests/ tests/
 
-RUN uv sync --no-dev --frozen
+RUN uv sync --frozen
 
 ENTRYPOINT ["uv", "run", "spot2yoto"]

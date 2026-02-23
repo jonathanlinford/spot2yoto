@@ -1,6 +1,10 @@
 services:
   spot2yoto:
-    image: ghcr.io/jonathanlinford/spot2yoto:latest
+    build:
+      context: .
+      args:
+        SETUPTOOLS_SCM_PRETEND_VERSION: "0.0.0-dev"
+    image: spot2yoto:local
     volumes:
       - ${HOME}/.config/spot2yoto:/root/.config/spot2yoto
       - spot2yoto-state:/root/.local/share/spot2yoto

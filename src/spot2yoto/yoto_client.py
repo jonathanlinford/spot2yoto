@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -42,34 +45,32 @@ class YotoClient:
     def __exit__(self, *args: object) -> None:
         self.close()
 
-    def _refresh_if_expired(self) -> None:
-        if self._tokens.is_expired and self._client_id:
+    def _refresh_if_expired(self, force: bool = False) -> None:
+        if (force or self._tokens.is_expired) and self._client_id:
             from spot2yoto.yoto_auth import refresh_access_token, save_tokens
 
             self._tokens = refresh_access_token(self._client_id, self._tokens.refresh_token)
             save_tokens(self._tokens, account_name=self._account_name)
             self._client.headers["Authorization"] = f"Bearer {self._tokens.access_token}"
 
-    def _request(self, method: str, path: str, **kwargs: object) -> dict:
+    def _request(self, method: str, path: str, **kwargs: Any) -> dict:
         self._refresh_if_expired()
         max_retries = 3
         for attempt in range(max_retries):
             resp = self._client.request(method, path, **kwargs)
+            # Check for rate limit in body regardless of status code —
+            # Yoto sometimes returns rate limits with non-429 status codes
+            body_retry = _parse_retry_after(resp, fallback=0)
+            if body_retry > MAX_RETRY_AFTER:
+                _raise_rate_limit_error(body_retry)
             if resp.status_code == 429:
-                retry_after = int(resp.headers.get("Retry-After", 2 ** attempt))
+                retry_after = body_retry or 2 ** attempt
                 if retry_after > MAX_RETRY_AFTER:
-                    raise YotoAPIError(
-                        f"Rate limited with Retry-After {retry_after}s (exceeds {MAX_RETRY_AFTER}s cap)",
-                        status_code=429,
-                    )
+                    _raise_rate_limit_error(retry_after)
                 time.sleep(retry_after)
                 continue
             if resp.status_code == 401 and self._client_id and attempt < max_retries - 1:
-                from spot2yoto.yoto_auth import refresh_access_token, save_tokens
-
-                self._tokens = refresh_access_token(self._client_id, self._tokens.refresh_token)
-                save_tokens(self._tokens, account_name=self._account_name)
-                self._client.headers["Authorization"] = f"Bearer {self._tokens.access_token}"
+                self._refresh_if_expired(force=True)
                 continue
             ok = {200, 201} if method == "POST" else {200}
             if resp.status_code not in ok:
@@ -80,10 +81,10 @@ class YotoClient:
             return resp.json()
         raise YotoAPIError(f"{method} {path} failed after {max_retries} retries", status_code=429)
 
-    def _get(self, path: str, **kwargs: object) -> dict:
+    def _get(self, path: str, **kwargs: Any) -> dict:
         return self._request("GET", path, **kwargs)
 
-    def _post(self, path: str, **kwargs: object) -> dict:
+    def _post(self, path: str, **kwargs: Any) -> dict:
         return self._request("POST", path, **kwargs)
 
     # --- Cards ---
@@ -154,7 +155,7 @@ class YotoClient:
     # --- Upload flow (4 steps) ---
 
     def get_upload_url(self, file_path: Path) -> YotoUploadUrl:
-        sha = _file_sha256(file_path)
+        sha = file_sha256(file_path)
         data = self._get(
             "/media/transcode/audio/uploadUrl",
             params={"sha256": sha, "filename": file_path.name},
@@ -190,13 +191,13 @@ class YotoClient:
         path = f"/media/upload/{upload_id}/transcoded"
         for attempt in range(max_attempts):
             resp = self._client.get(path, params={"loudnorm": "false"})
+            body_retry = _parse_retry_after(resp, fallback=0)
+            if body_retry > MAX_RETRY_AFTER:
+                _raise_rate_limit_error(body_retry)
             if resp.status_code == 429:
-                retry_after = int(resp.headers.get("Retry-After", 2 ** min(attempt, 5)))
+                retry_after = body_retry or 2 ** min(attempt, 5)
                 if retry_after > MAX_RETRY_AFTER:
-                    raise TranscodeError(
-                        f"Rate limited with Retry-After {retry_after}s (exceeds {MAX_RETRY_AFTER}s cap)",
-                        status_code=429,
-                    )
+                    _raise_rate_limit_error(retry_after)
                 time.sleep(retry_after)
                 continue
             if resp.status_code == 202:
@@ -255,7 +256,41 @@ class YotoClient:
         return self._post("/content", json=body)
 
 
-def _file_sha256(path: Path) -> str:
+_RETRY_BODY_RE = re.compile(r"after:\s*(\d+)\s*s", re.IGNORECASE)
+
+
+def _parse_retry_after(resp: httpx.Response, fallback: int) -> int:
+    """Extract retry-after seconds from header or response body."""
+    header = resp.headers.get("Retry-After")
+    if header:
+        try:
+            return int(header)
+        except ValueError:
+            pass
+    # Yoto sometimes puts "Retry will occur after: 60127 s" in the body
+    match = _RETRY_BODY_RE.search(resp.text)
+    if match:
+        return int(match.group(1))
+    return fallback
+
+
+def _raise_rate_limit_error(retry_after: int) -> None:
+    """Raise a friendly rate-limit error with a human-readable retry time."""
+    retry_at = datetime.now(timezone.utc) + timedelta(seconds=retry_after)
+    local_retry = retry_at.astimezone().strftime("%Y-%m-%d %H:%M %Z")
+    hours, remainder = divmod(retry_after, 3600)
+    minutes = remainder // 60
+    if hours:
+        human = f"{hours}h {minutes}m"
+    else:
+        human = f"{minutes}m"
+    raise YotoAPIError(
+        f"Yoto rate limit exceeded. Try again in {human} (around {local_retry}).",
+        status_code=429,
+    )
+
+
+def file_sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):

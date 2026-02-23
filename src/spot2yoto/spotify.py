@@ -30,8 +30,10 @@ def get_spotify_client(client_id: str, client_secret: str) -> spotipy.Spotify:
             redirect_uri="http://127.0.0.1:8888/callback",
             scope="playlist-read-private playlist-read-collaborative",
             cache_path=str(CACHE_PATH),
-            open_browser=True,
-        )
+            open_browser=False,
+        ),
+        retries=0,
+        status_retries=0,
     )
 
 
